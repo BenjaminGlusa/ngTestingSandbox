@@ -1,28 +1,109 @@
 # Ngtesting
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 1.0.4.
+This is a sandbox to test different approaches for unit testing in Angular.
 
-## Development server
+# The scenario
+In this scenario we want to test a very basic component [ComponentUnderTest](./src/app/under-test/under-test.component.ts).
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The app will automatically reload if you change any of the source files.
+This component has two dependencies:
+- [FooComponent](./src/app/foo/foo.component.ts)
+- [BarComponent](./src/app/bar/bar.component.ts)
 
-## Code scaffolding
+Furthermore, the component provides one public method: 'UnterTestComponent::action()'. It calls:
+- FooComponent::fizz()
+- BarComponent::buzz()
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|module`.
+when invoked.
 
-## Build
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory. Use the `-prod` flag for a production build.
+## Regular Way (ng create)
+When we create [ComponentUnderTest](./src/app/under-test/under-test.component.ts) using `ng create component`, we get [ComponentUnderTestSpec](./src/app/under-test/under-test.component.spec.ts) which uses `TestBed`.
 
-## Running unit tests
+```typescript
+TestBed.configureTestingModule({
+  declarations: [ UnderTestComponent ]
+})
+.compileComponents();
+```
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
+But we have to provide the depencies to [FooComponent](./src/app/foo/foo.component.ts) and [BarComponent](./src/app/bar/bar.component.ts). In order to make the test as isolated as possible, we mock those:
 
-## Running end-to-end tests
+```typescript
+let mockFoo = jasmine.createSpyObj('FooComponent', ['fizz']);
+let mockBar = jasmine.createSpyObj('BarComponent', ['buzz']);
 
-Run `ng e2e` to execute the end-to-end tests via [Protractor](http://www.protractortest.org/).
-Before running the tests make sure you are serving the app via `ng serve`.
+TestBed.configureTestingModule({
+  declarations: [ UnderTestComponent ],
+  providers: [
+    {
+      provide: FooComponent, useValue: mockFoo
+    },
+    {
+      provide: BarComponent, useValue: mockBar
+    }
+  ]
+})
+.compileComponents();
+```
 
-## Further help
+Now our test is setup and we can start to describe the component:
 
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI README](https://github.com/angular/angular-cli/blob/master/README.md).
+```typescript
+it('should be created', () => {
+  expect(component).toBeTruthy();
+});
+
+it('should invoke fizz on FooComponent when action is performed', ()=> {
+  component.action();
+  expect(mockFoo.fizz).toHaveBeenCalled();
+});
+
+it('should invoke buzz on BarComponent when action is performed', ()=> {
+  component.action();
+  expect(mockBar.buzz).toHaveBeenCalled();
+});
+```
+
+## Alternate Way (flat testing)
+Let's try a different approach. Instead of using the Testbed, we can create our own component instance. I call this a `flat` test - [ComponentUnderTestFlatSpec](./src/app/under-test/under-test.component.flat.spec.ts).
+
+```typescript
+let component : UnderTestComponent;
+let mockFoo : FooComponent;
+let mockBar : BarComponent;
+
+beforeEach(()=> {
+  mockFoo = jasmine.createSpyObj('FooComponent', ['fizz']);
+  mockBar = jasmine.createSpyObj('BarComponent', ['buzz']);
+
+  component = new UnderTestComponent(mockFoo, mockBar);
+});
+```
+
+That's it. Our test is setup and we can use the same description as before:
+```typescript
+it('should be created', () => {
+  expect(component).toBeTruthy();
+});
+
+it('should invoke fizz on FooComponent when action is performed', ()=> {
+  component.action();
+  expect(mockFoo.fizz).toHaveBeenCalled();
+});
+
+it('should invoke buzz on BarComponent when action is performed', ()=> {
+  component.action();
+  expect(mockBar.buzz).toHaveBeenCalled();
+});
+```
+
+### The good
+**Performance**. This flat test takes 0.004s on average on my machine, where the other spec with the TestBed takes 0.077s. So it is **about 20 times faster**!
+
+I assume the difference will grow only with every new dependency the TestBed has to provide.
+
+### The bad
+We cannot test the template (as we don't have a fixture).
+
+### The ugly
+Just kidding. It look like a good approach to me.

@@ -106,4 +106,4 @@ I assume the difference will grow only with every new dependency the TestBed has
 We cannot test the template (as we don't have a fixture).
 
 ### The ugly
-Just kidding. It look like a good approach to me.
+Just kidding. It looks like a good approach to me.
